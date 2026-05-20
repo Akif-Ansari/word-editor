@@ -1,0 +1,22 @@
+# Source files — only dist/ is published
+src/
+public/
+dist-app/
+
+# Public assets that Vite copies into dist/ — not needed in the package
+dist/*.svg
+dist/*.png
+dist/*.ico
+dist/*.webp
+
+# Config files
+vite.config.ts
+tsconfig*.json
+eslint.config.js
+index.html
+
+# Dev & CI
+node_modules/
+.git/
+.gitignore
+*.log

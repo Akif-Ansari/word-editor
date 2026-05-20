@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+/* Remove paragraph margins inside table cells so the last row doesn't get extra bottom space */
+td > p,
+th > p {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  line-height: 1.5;
+}
+
+/* Hide scrollbar on toolbar rows (they're horizontally scrollable on mobile) */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Slate placeholder fix:
+   Slate renders the placeholder as `position: absolute; top: 0` inside the
+   leaf span. `top: 0` resolves to the nearest positioned ancestor — by default
+   that is the whole editor div, so the placeholder floats away from the caret.
+   Giving each slate block element `position: relative` scopes the placeholder
+   to its own paragraph, so `top: 0` lands exactly on the line where the caret
+   sits, making the placeholder appear in-place of the cursor. */
+[data-slate-node="element"] {
+  position: relative;
+}
+
+/* Placeholder style isolation:
+   The placeholder is rendered inside the leaf span, so it inherits inline
+   mark styles (bold, italic, font-size, font-family) that are stored as
+   "pending marks" on the editor. We reset those here so the placeholder
+   always looks neutral, while still inheriting block-level styles (e.g.
+   h1/h2 size from the element) via `revert`. */
+[data-slate-placeholder] {
+  font-weight: revert !important;
+  font-style: revert !important;
+  font-size: revert !important;
+  font-family: revert !important;
+  text-decoration: none !important;
+  color: #9ca3af !important;
+  opacity: 1 !important;
+}
+
+/* Formatting Marks */
+.show-paragraphs p::after,
+.show-paragraphs h1::after,
+.show-paragraphs h2::after,
+.show-paragraphs h3::after,
+.show-paragraphs h4::after,
+.show-paragraphs h5::after,
+.show-paragraphs h6::after,
+.show-paragraphs li::after {
+  content: '¶';
+  color: #9CA3AF;
+  font-family: Arial, sans-serif;
+  font-weight: normal;
+  display: inline-block;
+  margin-left: 2px;
+  opacity: 0.7;
+  pointer-events: none;
+  user-select: none;
+  font-size: 0.9em;
+  vertical-align: baseline;
+}
+
+.slate-formatting-space {
+  position: relative;
+  display: inline-block;
+}
+.slate-formatting-space::before {
+  content: '·';
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: #9CA3AF;
+  font-weight: bold;
+  pointer-events: none;
+  user-select: none;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.slate-formatting-tab {
+  position: relative;
+  display: inline-block;
+}
+.slate-formatting-tab::before {
+  content: '→';
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: #9CA3AF;
+  pointer-events: none;
+  user-select: none;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.slate-formatting-newline {
+  position: relative;
+  display: inline-block;
+}
+.slate-formatting-newline::before {
+  content: '↵';
+  position: absolute;
+  left: 0;
+  color: #9CA3AF;
+  pointer-events: none;
+  user-select: none;
+  top: 50%;
+  transform: translateY(-50%);
+}
