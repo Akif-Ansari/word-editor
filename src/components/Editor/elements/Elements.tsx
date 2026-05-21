@@ -46,20 +46,42 @@ const headingClasses: Record<string, string> = {
     'heading-four': 'text-xl font-semibold my-1.5',
     'heading-five': 'text-lg font-semibold my-1',
     'heading-six': 'text-base font-semibold my-1',
+    'heading-custom': 'text-2xl font-semibold my-2 leading-tight',
 }
 
 export function HeadingEl({ attributes, children, element }: ElementProps) {
     const el = element as HeadingElement
     const cls = headingClasses[el.type] ?? ''
-    const Tag = ({
-        'heading-one': 'h1', 'heading-two': 'h2', 'heading-three': 'h3',
-        'heading-four': 'h4', 'heading-five': 'h5', 'heading-six': 'h6'
-    }[el.type] ?? 'h2') as 'h1'
-    return (
-        <Tag {...attributes} style={{ textAlign: el.align }} className={cls}>
-            {children}
-        </Tag>
-    )
+    // Map heading types to semantic tags; custom heading uses h2 by default
+
+    const tagMap: Record<string, keyof HTMLElementTagNameMap> = {
+        'heading-one': 'h1',
+        'heading-two': 'h2',
+        'heading-three': 'h3',
+        'heading-four': 'h4',
+        'heading-five': 'h5',
+        'heading-six': 'h6',
+        'heading-custom': 'h2',
+    }
+
+    const Tag = (tagMap[el.type] ?? 'h2') as keyof HTMLElementTagNameMap
+
+    // Build inline styles from element's optional overrides (fontSize, lineHeight, fontFamily, fontWeight, color)
+    const elWithCustom = el as HeadingElement & {
+        fontSize?: string;
+        lineHeight?: string;
+        fontFamily?: string;
+        fontWeight?: string;
+        color?: string;
+    }
+    const style: React.CSSProperties = { textAlign: elWithCustom.align }
+    if (elWithCustom.fontSize) style.fontSize = elWithCustom.fontSize
+    if (elWithCustom.lineHeight) style.lineHeight = elWithCustom.lineHeight
+    if (elWithCustom.fontFamily) style.fontFamily = elWithCustom.fontFamily
+    if (elWithCustom.fontWeight) style.fontWeight = elWithCustom.fontWeight
+    if (elWithCustom.color) style.color = elWithCustom.color
+
+    return React.createElement(Tag, { ...attributes, style, className: cls }, children)
 }
 
 // ─── Blockquote ──────────────────────────────────────────────────────────────

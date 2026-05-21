@@ -97,6 +97,8 @@ import {
   // SeparatorHorizontal not used here
   MoveVertical,
 } from "lucide-react";
+import { Element as SlateElement } from 'slate';
+import type { CustomElement, HeadingElement } from '../types';
 import { TranslateModal } from "./TranslateModal";
 import { HistoryEditor } from "slate-history";
 import { Editor, Transforms, Range } from "slate";
@@ -136,6 +138,280 @@ import type {
   ToolbarFeatures,
   RulerUnit,
 } from "../types";
+
+// ---- Headings presets storage key ----
+const HEADINGS_STORAGE_KEY = "we_custom_headings_v1";
+
+type HeadingPreset = {
+  id: string;
+  name: string;
+  fontSize?: string;
+  lineHeight?: string;
+  fontFamily?: string;
+  fontWeight?: string;
+  color?: string;
+};
+
+function loadHeadingPresets(): HeadingPreset[] {
+  try {
+    const raw = localStorage.getItem(HEADINGS_STORAGE_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) as HeadingPreset[];
+  } catch { return []; }
+}
+
+function saveHeadingPresets(list: HeadingPreset[]) {
+  try {
+    localStorage.setItem(HEADINGS_STORAGE_KEY, JSON.stringify(list));
+  } catch { /* ignore */ }
+}
+
+// Headings Dropdown component
+function HeadingsDropdown({ onApply }: { onApply: (presetIdOrType: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useClickOutside<HTMLDivElement>(open, () => setOpen(false));
+  const { btnRef, pos } = useDropdownPos(open, "left");
+  const [presets, setPresets] = useState<HeadingPreset[]>(() => loadHeadingPresets());
+
+  // Default heading items
+  const defaults = [
+    { value: "heading-one", label: "Heading 1" },
+    { value: "heading-two", label: "Heading 2" },
+    { value: "heading-three", label: "Heading 3" },
+    { value: "heading-four", label: "Heading 4" },
+    { value: "heading-five", label: "Heading 5" },
+    { value: "heading-six", label: "Heading 6" },
+  ];
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        ref={btnRef}
+        title="Headings"
+        onMouseDown={(e) => { e.preventDefault(); setOpen((o) => !o); }}
+        className="flex items-center gap-1 px-2 py-1 rounded border border-gray-200 bg-white hover:border-blue-400 hover:bg-blue-50 transition-colors text-xs text-gray-800 font-medium cursor-pointer"
+      >
+        <span>Headings</span>
+        <ChevronDown size={11} className={`text-gray-400 shrink-0 ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && pos && (
+        <div className="fixed bg-white border border-gray-200 rounded-xl shadow-2xl z-200 overflow-hidden" style={{ top: pos.top, left: pos.left, minWidth: 200 }}>
+          <div className="py-1">
+            {defaults.map((d) => (
+              <button key={d.value} onMouseDown={(e) => { e.preventDefault(); onApply(d.value); setOpen(false); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50">{d.label}</button>
+            ))}
+            <div className="border-t border-gray-100 my-1" />
+            {presets.length === 0 ? (
+              <div className="px-3 py-2 text-xs text-gray-500">No custom Headings. Create one via Manage Headings.</div>
+            ) : (
+              presets.map((p) => (
+                <button key={p.id} onMouseDown={(e) => { e.preventDefault(); onApply(p.id); setOpen(false); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 truncate">{p.name}</div>
+                    <div className="text-xs text-gray-400">{p.fontSize ?? ''}</div>
+                    <div className="w-10 h-5 rounded border" style={{ backgroundColor: p.color ?? '#fff', fontSize: p.fontSize ?? undefined, fontFamily: p.fontFamily ?? undefined, fontWeight: p.fontWeight ?? undefined }} />
+                  </div>
+                </button>
+              ))
+            )}
+            <div className="border-t border-gray-100 my-1" />
+            <ManageHeadingsButton onChange={() => setPresets(loadHeadingPresets())} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ManageHeadingsButton({ onChange }: { onChange: () => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <button onMouseDown={(e) => { e.preventDefault(); setOpen(true); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50">Manage Headings...</button>
+      {open && <ManageHeadingsModal onClose={() => { setOpen(false); onChange(); }} />}
+    </div>
+  );
+}
+
+function ManageHeadingsModal({ onClose }: { onClose: () => void }) {
+  const [presets, setPresets] = useState<HeadingPreset[]>(() => loadHeadingPresets());
+  const [editing, setEditing] = useState<HeadingPreset | null>(null);
+  const [name, setName] = useState("");
+  const [fontSize, setFontSize] = useState("");
+  const [lineHeight, setLineHeight] = useState("");
+  const [fontFamily, setFontFamily] = useState("");
+  const [fontWeight, setFontWeight] = useState("");
+  const [color, setColor] = useState("");
+
+  const startEdit = (p: HeadingPreset | null) => {
+    setEditing(p);
+    setName(p?.name ?? "");
+    setFontSize(p?.fontSize ?? "");
+    setLineHeight(p?.lineHeight ?? "");
+    setFontFamily(p?.fontFamily ?? "");
+    setFontWeight(p?.fontWeight ?? "");
+    setColor(p?.color ?? "");
+  };
+
+  const save = () => {
+    // Normalize values: ensure fontSize has units (append px if user entered a number)
+    let fs = fontSize.trim();
+    if (fs && /^\d+(?:\.\d+)?$/.test(fs)) fs = fs + "px";
+    const lh = lineHeight.trim();
+    const ff = fontFamily.trim();
+    const fw = fontWeight.trim();
+    const col = color.trim();
+
+    const list = presets.slice();
+    if (editing) {
+      const idx = list.findIndex((p) => p.id === editing.id);
+      if (idx !== -1) {
+        list[idx] = { ...list[idx], name, fontSize: fs, lineHeight: lh, fontFamily: ff, fontWeight: fw, color: col };
+      }
+    } else {
+      const id = `h_${Date.now().toString(36)}`;
+      list.push({ id, name: name || `Custom ${list.length + 1}`, fontSize: fs, lineHeight: lh, fontFamily: ff, fontWeight: fw, color: col });
+    }
+    setPresets(list);
+    saveHeadingPresets(list);
+    setEditing(null);
+  };
+
+  const remove = (id: string) => {
+    const list = presets.filter((p) => p.id !== id);
+    setPresets(list);
+    saveHeadingPresets(list);
+    if (editing?.id === id) setEditing(null);
+  };
+
+  // Build normalized preview values so users see immediate changes while editing.
+  const previewFontSize = (() => {
+    const fs = fontSize.trim();
+    if (!fs) return undefined;
+    // If user entered a number like '24', append 'px'. If they supplied units, use as-is.
+    if (/^\d+(?:\.\d+)?$/.test(fs)) return fs + 'px';
+    return fs;
+  })();
+
+  const previewLineHeight = (() => {
+    const lh = lineHeight.trim();
+    if (!lh) return undefined;
+    return lh;
+  })();
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/20" onClick={onClose} />
+      <div className="relative z-10 bg-white rounded-lg shadow-lg p-4 sm:p-6 overflow-auto border border-gray-100" style={{ maxHeight: '80vh', width: 720, maxWidth: '100%' }}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">Manage Headings</h3>
+          <div className="flex items-center gap-2">
+            <button onClick={onClose} className="text-gray-500 hover:text-gray-800 px-2 py-1 rounded">Close</button>
+          </div>
+        </div>
+
+        <div className="flex gap-4">
+          {/* Sidebar: presets */}
+          <aside className="w-72 shrink-0">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-medium text-gray-700">Presets</div>
+              <button onMouseDown={(e) => { e.preventDefault(); startEdit(null); }} className="text-xs px-2 py-1 bg-green-600 text-white rounded">New</button>
+            </div>
+            <div className="border border-gray-100 rounded bg-gray-50 p-2 overflow-auto" style={{ maxHeight: '60vh' }}>
+              <div className="space-y-2">
+                {presets.length === 0 && <div className="text-xs text-gray-500 p-2">No custom headings yet</div>}
+                {presets.map((p) => (
+                  <div
+                    key={p.id}
+                    onMouseDown={(e) => { e.preventDefault(); startEdit(p); }}
+                    className={`flex items-center gap-2 p-2 rounded cursor-pointer hover:bg-gray-50 ${editing?.id === p.id ? 'bg-white ring-2 ring-blue-200' : ''}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate">{p.name}</div>
+                      <div className="text-xs text-gray-400 truncate">{p.fontSize ?? ''} {p.lineHeight ? `· ${p.lineHeight}` : ''}</div>
+                    </div>
+                    <div className="w-10 h-6 rounded border border-gray-200 flex items-center justify-center text-xs text-gray-600 truncate" style={{ fontSize: p.fontSize ?? undefined, fontFamily: p.fontFamily ?? undefined, color: p.color ?? undefined }}>
+                      Aa
+                    </div>
+                    <button onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); remove(p.id); }} className="text-xs px-2 py-1 bg-red-50 text-red-700 rounded">Delete</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </aside>
+
+          {/* Main editor */}
+          <main className="flex-1">
+            <div className="mb-2 text-sm text-gray-600">Edit / Create</div>
+            <div className="border border-gray-100 rounded p-4 bg-white space-y-4">
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Name</label>
+                <input value={name} onChange={(e) => setName(e.target.value)} className="w-full border border-gray-200 px-3 py-2 rounded text-sm" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Font Size (e.g. 24px)</label>
+                  <input value={fontSize} onChange={(e) => setFontSize(e.target.value)} className="w-full border border-gray-200 px-3 py-2 rounded text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Line Height (e.g. 1.2)</label>
+                  <input value={lineHeight} onChange={(e) => setLineHeight(e.target.value)} className="w-full border border-gray-200 px-3 py-2 rounded text-sm" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Font Family</label>
+                  <select value={fontFamily} onChange={(e) => setFontFamily(e.target.value)} className="w-full border border-gray-200 px-3 py-2 rounded text-sm">
+                    <option value="">(document default)</option>
+                    {FONT_FAMILIES.map((f) => (
+                      <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Font Weight (e.g. 700)</label>
+                  <input value={fontWeight} onChange={(e) => setFontWeight(e.target.value)} className="w-full border border-gray-200 px-3 py-2 rounded text-sm" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Color</label>
+                <input type="color" value={color || "#000000"} onChange={(e) => setColor(e.target.value)} className="w-16 h-8 p-0 border border-gray-200 rounded" />
+              </div>
+
+              {/* Live preview */}
+              <div className="mt-1">
+                <div className="text-xs text-gray-500 mb-2">Preview</div>
+                <div className="border border-gray-100 rounded bg-gray-50 p-3">
+                  <div
+                    className="p-3 rounded bg-white"
+                    style={{
+                      fontFamily: fontFamily || undefined,
+                      fontSize: previewFontSize,
+                      lineHeight: previewLineHeight,
+                      fontWeight: fontWeight || undefined,
+                      color: color || undefined,
+                    }}
+                  >
+                    The quick brown fox jumps over the lazy dog
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2">
+                <button onMouseDown={(e) => { e.preventDefault(); startEdit(null); onClose(); }} className="px-3 py-2 text-sm bg-gray-100 rounded">Close</button>
+                <button onMouseDown={(e) => { e.preventDefault(); save(); }} className="px-3 py-2 text-sm bg-blue-600 text-white rounded">Save</button>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── ToolbarButton ────────────────────────────────────────────────────────────
 
@@ -2288,17 +2564,12 @@ interface ToolbarProps {
   // darkMode and readingMode handlers are not implemented in this toolbar file
 }
 
-function RibbonGroup({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+function RibbonGroup({ title, children, style }: { title: string; children: React.ReactNode; style?: React.CSSProperties }) {
+  const allowFlex = Boolean(style && (style as unknown as { flex?: string | number }).flex);
   return (
-    <div className="flex flex-col h-full border-r border-gray-200 last:border-r-0 px-2 first:pl-1">
-      <div className="flex items-center gap-0.5 flex-1">{children}</div>
-      <div className="text-[10px] text-gray-400 font-medium text-center pb-0.5 select-none w-full mt-auto">
+    <div className={`flex flex-col ${allowFlex ? '' : 'shrink-0'} border-r border-gray-200 last:border-r-0 px-2 first:pl-1`} style={{ minWidth: 100, ...(style ?? {}) }}>
+      <div className="flex items-center gap-0.5 flex-wrap">{children}</div>
+      <div className="text-[10px] text-gray-400 font-medium text-center pb-0.5 select-none w-full mt-1">
         {title}
       </div>
     </div>
@@ -2422,6 +2693,47 @@ export function Toolbar({
   type TabName = typeof TABS[number];
   const [activeTab, setActiveTab] = useState<TabName>("Home");
   const [showHelpModal, setShowHelpModal] = useState(false);
+  // Apply heading: either a standard heading type (heading-one..six) or a custom preset id
+  const applyHeading = (idOrType: string) => {
+    if (!editor) return;
+    // Standard types
+    const std = [
+      "heading-one",
+      "heading-two",
+      "heading-three",
+      "heading-four",
+      "heading-five",
+      "heading-six",
+    ];
+    if (std.includes(idOrType)) {
+      toggleBlock(editor, idOrType as CustomElement["type"]);
+      return;
+    }
+    // Otherwise treat as preset id
+    const preset = loadHeadingPresets().find((p) => p.id === idOrType);
+    if (!preset) return;
+    // Set node type to heading-custom and apply inline styling via Transforms
+    try {
+      console.debug("applyHeading: applying preset", preset, "selection", editor.selection);
+      const sel = editor.selection;
+      if (!sel) return;
+      const at = Editor.unhangRange(editor, sel);
+      Transforms.setNodes(editor, {
+        type: 'heading-custom',
+        customHeadingId: preset.id,
+        fontSize: preset.fontSize,
+        lineHeight: preset.lineHeight,
+        fontFamily: preset.fontFamily,
+        fontWeight: preset.fontWeight,
+        color: preset.color,
+      } as Partial<HeadingElement>, {
+        at,
+        match: (n) => !Editor.isEditor(n) && SlateElement.isElement(n) && Editor.isBlock(editor, n),
+      });
+    } catch (err) {
+      console.error("applyHeading error", err);
+    }
+  };
 
   return (
     <div className="flex flex-col border-b border-gray-200 bg-gray-50">
@@ -2457,8 +2769,8 @@ export function Toolbar({
         </div>
       </div>
 
-      {/* Ribbon Content */}
-      <div className="flex items-stretch gap-1 px-2 sm:px-3 py-1.5 sm:py-2 min-h-17 overflow-x-auto scrollbar-none bg-white border-t border-gray-200 shadow-sm">
+      {/* Ribbon Content: allow groups to wrap into multiple rows to avoid horizontal overflow */}
+      <div className="flex flex-wrap content-start items-stretch gap-x-1 gap-y-2 px-2 sm:px-3 py-1 sm:py-2 bg-white border-t border-gray-200 shadow-sm">
         {activeTab === "File" && (
           <>
             <RibbonGroup title="Document">
@@ -2510,33 +2822,33 @@ export function Toolbar({
 
         {activeTab === "Home" && (
           <>
-            {feat("pasteMode") && (
-              <RibbonGroup title="Clipboard">
-                <PasteModeSelector
-                  mode={pasteMode}
-                  onChange={onPasteModeChange}
-                />
-              </RibbonGroup>
-            )}
+            {/* Combined Editing group: Clipboard, Undo/Redo, Find & Replace */}
+            <RibbonGroup title="Editing" style={{ flex: '1 1 0', minWidth: 120 }}>
+              {feat("pasteMode") && (
+                <div className="mr-1">
+                  <PasteModeSelector mode={pasteMode} onChange={onPasteModeChange} />
+                </div>
+              )}
 
-            {feat("undoRedo") && (
-              <RibbonGroup title="Undo">
-                <ToolbarButton
-                  title="Undo (Ctrl+Z)"
-                  onClick={() => HistoryEditor.undo(editor)}
-                >
-                  <Undo size={15} />
-                </ToolbarButton>
-                <ToolbarButton
-                  title="Redo (Ctrl+Y)"
-                  onClick={() => HistoryEditor.redo(editor)}
-                >
-                  <Redo size={15} />
-                </ToolbarButton>
-              </RibbonGroup>
-            )}
+              {feat("undoRedo") && (
+                <>
+                  <ToolbarButton title="Undo (Ctrl+Z)" onClick={() => HistoryEditor.undo(editor)}>
+                    <Undo size={15} />
+                  </ToolbarButton>
+                  <ToolbarButton title="Redo (Ctrl+Y)" onClick={() => HistoryEditor.redo(editor)}>
+                    <Redo size={15} />
+                  </ToolbarButton>
+                </>
+              )}
 
-            <RibbonGroup title="Font">
+              {feat("findReplace") && (
+                <ToolbarButton title="Find & Replace (Ctrl+F)" onClick={onFindOpen}>
+                  <Search size={15} />
+                </ToolbarButton>
+              )}
+            </RibbonGroup>
+
+            <RibbonGroup title="Font" style={{ flex: '1 1 0', minWidth: 150 }}>
               {feat("fontFamily") && (
                 <SelectDropdown
                   title="Font Family"
@@ -2562,6 +2874,30 @@ export function Toolbar({
                   onChange={(val) => setMarkValue(editor, "fontSize", val)}
                 />
               )}
+              {/* Styles (Headings) moved into Font group per request */}
+              {feat("blockType") && <HeadingsDropdown onApply={(v) => applyHeading(v)} />}
+              {feat("textColor") && (
+                <div className="ml-1">
+                  <ColorPicker
+                    format="color"
+                    label="Text Color"
+                    currentColor={marks?.color}
+                  />
+                </div>
+              )}
+              {feat("highlight") && (
+                <div className="ml-1">
+                  <ColorPicker
+                    format="backgroundColor"
+                    label="Highlight"
+                    currentColor={marks?.backgroundColor}
+                  />
+                </div>
+              )}
+              {/* keep Font controls minimal to reduce horizontal width */}
+            </RibbonGroup>
+
+            <RibbonGroup title="Formatting" style={{ flex: '1 1 0', minWidth: 150 }}>
               {feat("bold") && (
                 <ToolbarButton
                   active={isMarkActive(editor, "bold")}
@@ -2640,20 +2976,7 @@ export function Toolbar({
                   <Highlighter size={15} />
                 </ToolbarButton>
               )}
-              {feat("textColor") && (
-                <ColorPicker
-                  format="color"
-                  label="Text Color"
-                  currentColor={marks?.color}
-                />
-              )}
-              {feat("highlight") && (
-                <ColorPicker
-                  format="backgroundColor"
-                  label="Highlight"
-                  currentColor={marks?.backgroundColor}
-                />
-              )}
+              {/* moved textColor and highlight into Font group */}
               {feat("clearFormatting") && (
                 <ToolbarButton
                   title="Clear Formatting"
@@ -2705,7 +3028,7 @@ export function Toolbar({
               {feat("changeCase") && <ChangeCaseDropdown />}
             </RibbonGroup>
 
-            <RibbonGroup title="Paragraph">
+            <RibbonGroup title="Paragraph" style={{ flex: '1 1 0', minWidth: 150 }}>
               {feat("align") && (
                 <>
                   <ToolbarButton
@@ -2820,16 +3143,7 @@ export function Toolbar({
               )}
             </RibbonGroup> */}
 
-            {feat("findReplace") && (
-              <RibbonGroup title="Editing">
-                <ToolbarButton
-                  title="Find & Replace (Ctrl+F)"
-                  onClick={onFindOpen}
-                >
-                  <Search size={15} />
-                </ToolbarButton>
-              </RibbonGroup>
-            )}
+            {/* Styles moved into Font group */}
           </>
         )}
 

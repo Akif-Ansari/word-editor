@@ -171,8 +171,22 @@ export type HeadingElement = {
     | "heading-three"
     | "heading-four"
     | "heading-five"
-    | "heading-six";
+    | "heading-six"
+    | "heading-custom";
   align?: Alignment;
+  /**
+   * Optional ID linking this heading to a custom heading preset (managed via the toolbar).
+   * If present, UI should prefer the preset values. This ID is not validated by Slate,
+   * it's purely an informative link stored with the element.
+   */
+  customHeadingId?: string;
+  /** Inline style overrides that come from a custom heading preset. These are optional
+   * and applied by the renderer when present. */
+  fontSize?: string;
+  lineHeight?: string;
+  fontFamily?: string;
+  fontWeight?: string;
+  color?: string;
   children: CustomText[];
 };
 

@@ -28,6 +28,7 @@ export function renderElement(props: RenderElementProps): React.ReactElement {
         case 'heading-four':
         case 'heading-five':
         case 'heading-six': return <HeadingEl {...props} />
+        case 'heading-custom': return <HeadingEl {...props} />
         case 'blockquote': return <BlockquoteEl {...props} />
         case 'code-block': return <CodeBlockEl {...props} />
         case 'bulleted-list': return <BulletedListEl {...props} />
